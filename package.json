@@ -1,0 +1,14 @@
+{
+  "name": "books-reader",
+  "version": "1.0.0",
+  "description": "Local dark-themed page-by-page book reader with highlights and notes",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pdfjs-dist": "^3.11.174"
+  }
+}
