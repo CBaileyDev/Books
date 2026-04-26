@@ -53,18 +53,20 @@ app.get('/api/books', (req, res) => {
     .filter((f) => f.toLowerCase().endsWith('.pdf'));
   const all = readAnnotations();
   const books = files.map((f) => {
-    const meta = prettifyTitle(f);
+    const fnMeta = prettifyTitle(f);
     const stored = all[f] || {};
     const annotations = stored.annotations || [];
+    const stMeta = stored.metadata || {};
     return {
       id: f,
-      title: meta.title,
-      author: meta.author,
+      title: (stMeta.title && String(stMeta.title).trim()) || fnMeta.title,
+      author: (stMeta.author && String(stMeta.author).trim()) || fnMeta.author,
       file: '/content/' + encodeURIComponent(f),
       lastPage: stored.lastPage || 1,
       totalPages: stored.totalPages || null,
       highlightsCount: annotations.filter((a) => !a.note).length,
       notesCount: annotations.filter((a) => a.note).length,
+      hasMetadata: !!stored.metadata,
     };
   });
   res.json(books);
@@ -84,6 +86,19 @@ app.post('/api/annotations/:bookId', (req, res) => {
   const all = readAnnotations();
   const existing = all[req.params.bookId] || {};
   all[req.params.bookId] = { ...existing, ...req.body };
+  writeAnnotations(all);
+  res.json({ ok: true });
+});
+
+app.post('/api/books/:bookId/metadata', (req, res) => {
+  const { title, author } = req.body || {};
+  const all = readAnnotations();
+  const existing = all[req.params.bookId] || {};
+  existing.metadata = {
+    title: (title || '').toString().trim(),
+    author: (author || '').toString().trim(),
+  };
+  all[req.params.bookId] = existing;
   writeAnnotations(all);
   res.json({ ok: true });
 });
