@@ -47,6 +47,22 @@
               />
             </svg>
           </button>
+          <button class="icon-btn" id="toggleOutline" title="Contents (T)" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path
+                fill="currentColor"
+                d="M3 5h18v2H3V5Zm3 6h15v2H6v-2Zm-3 6h18v2H3v-2Z"
+              />
+            </svg>
+          </button>
+          <button class="icon-btn" id="toggleSearch" title="Search (Ctrl/Cmd+F)">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path
+                fill="currentColor"
+                d="M10 4a6 6 0 1 1-3.9 10.6l-4 4-1.4-1.4 4-4A6 6 0 0 1 10 4Zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
+              />
+            </svg>
+          </button>
           <div class="reader-title">
             <span id="readerTitle"></span>
             <small id="readerAuthor"></small>
@@ -147,6 +163,50 @@
               <button class="btn primary" id="noteSave">Save note</button>
             </div>
           </div>
+
+          <!-- Left panel: Contents + Search -->
+          <aside id="leftPanel" class="left-panel">
+            <div class="lp-header">
+              <div class="lp-tabs">
+                <button class="lp-tab active" data-lp="outline">Contents</button>
+                <button class="lp-tab" data-lp="search">Search</button>
+              </div>
+              <button class="icon-btn" id="closeLeftPanel" title="Close">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path
+                    d="m6 6 12 12M6 18 18 6"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="lp-pane active" id="lpOutline">
+              <div class="outline-tree" id="outlineTree"></div>
+              <div class="lp-empty" id="outlineEmpty" hidden>
+                This book has no table of contents.
+              </div>
+            </div>
+            <div class="lp-pane" id="lpSearch">
+              <div class="search-input-wrap">
+                <svg viewBox="0 0 24 24" width="14" height="14">
+                  <path
+                    fill="currentColor"
+                    d="M10 4a6 6 0 1 1-3.9 10.6l-4 4-1.4-1.4 4-4A6 6 0 0 1 10 4Zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
+                  />
+                </svg>
+                <input
+                  id="searchInput"
+                  type="search"
+                  placeholder="Search this book…"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="search-status" id="searchStatus"></div>
+              <div class="search-results" id="searchResults"></div>
+            </div>
+          </aside>
 
           <!-- Notes side panel -->
           <aside id="notesPanel" class="notes-panel">
