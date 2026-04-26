@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write       # needed to push to gh-pages branch
   pages: write
   id-token: write
 
@@ -41,15 +41,34 @@ jobs:
           cp -r node_modules/pdfjs-dist/cmaps/. _site/pdfjs/cmaps/
           cp -r node_modules/pdfjs-dist/standard_fonts/. _site/pdfjs/standard_fonts/
           node scripts/build-books-json.js _site/books.json
-          # Disable Jekyll so files starting with _ are served as-is
+          # Disable Jekyll so files starting with _ are served as-is and
+          # README.md isn't auto-built into index.html.
           touch _site/.nojekyll
 
-      - uses: actions/configure-pages@v5
+      # Fallback: also publish to a gh-pages branch. If the repo's Pages
+      # source is "Deploy from a branch", the user can point it at this
+      # branch (or pick "GitHub Actions" for the deploy job below).
+      - name: Publish to gh-pages branch
+        run: |
+          set -e
+          cd _site
+          git init -q -b gh-pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy site for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
+  # Standard GitHub Pages deploy. Works when the repo's Pages source is set
+  # to "GitHub Actions". If the source is set to "Deploy from a branch",
+  # this step is a no-op (continue-on-error) and the gh-pages branch above
+  # is what gets served.
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -57,5 +76,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+        continue-on-error: true
+
       - id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true

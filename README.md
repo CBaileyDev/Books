@@ -38,23 +38,39 @@ Drop any `.pdf` into the `Content/` folder. Filenames like
 The frontend works without the Node server — it falls back to `localStorage`
 for annotations when no `/api/*` endpoints are reachable.
 
-To publish:
+The workflow at `.github/workflows/pages.yml` runs on every push to `main`
+and publishes the site **two ways at once** so either Pages source mode
+works:
 
-1. Push to the `main` branch (the workflow at `.github/workflows/pages.yml`
-   builds the static site automatically).
-2. In the repo on GitHub: **Settings → Pages → Build and deployment → Source:
-   GitHub Actions**.
-3. The first push to `main` (or a manual run from the Actions tab) will
-   deploy to `https://<your-username>.github.io/<repo>/`.
+1. via the standard `actions/deploy-pages` flow (needs **Pages source =
+   "GitHub Actions"**), and
+2. by force-pushing the built `_site/` to a `gh-pages` branch (needs
+   **Pages source = "Deploy from a branch", branch `gh-pages`, folder `/`**).
 
-The Action assembles a `_site/` folder containing:
+### One-time setup
+
+In the repo on GitHub: **Settings → Pages → Build and deployment → Source**.
+Pick whichever you prefer:
+
+- **GitHub Actions** (recommended). Save. The next push to `main` (or a
+  manual re-run from the Actions tab) deploys.
+- **Deploy from a branch** → branch `gh-pages` → folder `/ (root)`. Save.
+  Same thing.
+
+> If Pages source is left at the default "Deploy from a branch / `main` /
+> `/ (root)`", the README is rendered as the homepage instead of the app.
+> Either of the two options above fixes it.
+
+### What the workflow assembles
+
+The `_site/` folder contains:
 
 - `public/*` (HTML / CSS / JS)
 - `Content/*` PDFs copied to `_site/content/`
 - a generated `books.json` listing the books
-- the PDF.js runtime files copied from `node_modules/pdfjs-dist/`
+- the PDF.js runtime + `cmaps/` + `standard_fonts/` from `node_modules/pdfjs-dist/`
 
-In the static deploy:
+### Static-mode caveats
 
 - All annotations and highlights live in the browser's `localStorage`
   (per device, per browser).
