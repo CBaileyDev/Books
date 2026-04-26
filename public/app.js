@@ -2,7 +2,113 @@
 (function () {
   'use strict';
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/build/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/build/pdf.worker.min.js';
+
+  const PDF_DOC_OPTS = {
+    cMapUrl: 'pdfjs/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: 'pdfjs/standard_fonts/',
+  };
+
+  // ---------- Storage backend ----------
+  // staticMode = true → no server, persist to localStorage (GitHub Pages mode).
+  // staticMode = false → POST to /api/* (local node server mode).
+  let staticMode = null;
+
+  async function detectMode() {
+    if (staticMode !== null) return;
+    try {
+      const r = await fetch('api/books', { cache: 'no-store' });
+      staticMode = !r.ok;
+    } catch {
+      staticMode = true;
+    }
+  }
+
+  function lsGet(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  function lsSet(key, value) {
+    try { localStorage.setItem(key, value); } catch { /* quota */ }
+  }
+
+  async function fetchBooks() {
+    if (!staticMode) {
+      try {
+        const res = await fetch('api/books');
+        if (res.ok) return await res.json();
+      } catch { /* fall through */ }
+      staticMode = true;
+    }
+    // Static mode: load books.json then merge per-book localStorage state
+    const res = await fetch('books.json');
+    const list = await res.json();
+    return list.map((b) => mergeStaticBook(b));
+  }
+
+  function mergeStaticBook(b) {
+    const meta = lsGet('meta_' + b.id);
+    if (meta) {
+      try {
+        const m = JSON.parse(meta);
+        if (m.title) b.title = m.title;
+        if (m.author) b.author = m.author;
+        b.hasMetadata = true;
+      } catch { /* ignore */ }
+    }
+    const ann = lsGet('ann_' + b.id);
+    if (ann) {
+      try {
+        const data = JSON.parse(ann);
+        const arr = data.annotations || [];
+        b.lastPage = data.lastPage || 1;
+        b.totalPages = data.totalPages || b.totalPages || null;
+        b.highlightsCount = arr.filter((a) => !a.note).length;
+        b.notesCount = arr.filter((a) => a.note).length;
+      } catch { /* ignore */ }
+    }
+    return b;
+  }
+
+  async function fetchAnnotations(bookId) {
+    if (staticMode) {
+      const v = lsGet('ann_' + bookId);
+      if (v) {
+        try { return JSON.parse(v); } catch { /* fall through */ }
+      }
+      return { annotations: [], lastPage: 1, totalPages: null };
+    }
+    return fetch('api/annotations/' + encodeURIComponent(bookId)).then((r) => r.json());
+  }
+
+  async function postAnnotations(bookId, payload) {
+    if (staticMode) {
+      const existing = lsGet('ann_' + bookId);
+      let merged = payload;
+      if (existing) {
+        try { merged = { ...JSON.parse(existing), ...payload }; } catch {}
+      }
+      lsSet('ann_' + bookId, JSON.stringify(merged));
+      return;
+    }
+    return fetch('api/annotations/' + encodeURIComponent(bookId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function postMetadata(bookId, meta) {
+    if (staticMode) {
+      lsSet('meta_' + bookId, JSON.stringify(meta));
+      return;
+    }
+    return fetch('api/books/' + encodeURIComponent(bookId) + '/metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(meta),
+    });
+  }
 
   // ---------- State ----------
   const state = {
@@ -93,9 +199,8 @@
 
   // ---------- Library ----------
   async function loadLibrary() {
-    const res = await fetch('/api/books');
-    const books = await res.json();
-    state.books = books;
+    await detectMode();
+    state.books = await fetchBooks();
     renderLibrary();
   }
 
@@ -176,7 +281,7 @@
       return;
     }
     try {
-      const pdf = await pdfjsLib.getDocument({ url: card.dataset.bookFile }).promise;
+      const pdf = await pdfjsLib.getDocument({ url: card.dataset.bookFile, ...PDF_DOC_OPTS }).promise;
       const page = await pdf.getPage(1);
       const vp = page.getViewport({ scale: 1 });
       const targetW = 360;
@@ -198,12 +303,7 @@
           const title = (info.Title || '').trim();
           const author = (info.Author || '').trim();
           if (title || author) {
-            await fetch('/api/books/' + encodeURIComponent(bookId) + '/metadata', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title, author }),
-            });
-            // update card text in place
+            await postMetadata(bookId, { title, author });
             updateCardText(card, title, author);
           }
         } catch (e) { /* ignore */ }
@@ -216,17 +316,13 @@
 
   async function extractAndSaveMetadata(card) {
     try {
-      const pdf = await pdfjsLib.getDocument({ url: card.dataset.bookFile }).promise;
+      const pdf = await pdfjsLib.getDocument({ url: card.dataset.bookFile, ...PDF_DOC_OPTS }).promise;
       const meta = await pdf.getMetadata();
       const info = (meta && meta.info) || {};
       const title = (info.Title || '').trim();
       const author = (info.Author || '').trim();
       if (title || author) {
-        await fetch('/api/books/' + encodeURIComponent(card.dataset.bookId) + '/metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, author }),
-        });
+        await postMetadata(card.dataset.bookId, { title, author });
         updateCardText(card, title, author);
       }
       pdf.cleanup && pdf.cleanup();
@@ -278,10 +374,8 @@
 
     try {
       const [annotationsRes, pdf] = await Promise.all([
-        fetch('/api/annotations/' + encodeURIComponent(book.id)).then((r) =>
-          r.json()
-        ),
-        pdfjsLib.getDocument({ url: book.file }).promise,
+        fetchAnnotations(book.id),
+        pdfjsLib.getDocument({ url: book.file, ...PDF_DOC_OPTS }).promise,
       ]);
       state.pdfDoc = pdf;
       state.pageCount = pdf.numPages;
@@ -942,11 +1036,7 @@
     pendingPersist = {};
     if (!state.currentBook) return;
     try {
-      await fetch('/api/annotations/' + encodeURIComponent(state.currentBook.id), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      await postAnnotations(state.currentBook.id, payload);
     } catch (e) {
       console.warn('persist failed', e);
     }

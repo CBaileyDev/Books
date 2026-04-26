@@ -61,7 +61,7 @@ app.get('/api/books', (req, res) => {
       id: f,
       title: (stMeta.title && String(stMeta.title).trim()) || fnMeta.title,
       author: (stMeta.author && String(stMeta.author).trim()) || fnMeta.author,
-      file: '/content/' + encodeURIComponent(f),
+      file: 'content/' + encodeURIComponent(f),
       lastPage: stored.lastPage || 1,
       totalPages: stored.totalPages || null,
       highlightsCount: annotations.filter((a) => !a.note).length,
